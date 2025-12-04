@@ -6,11 +6,16 @@ const { neon } = require('@neondatabase/serverless');
 // Database connection (uses environment variable on Netlify)
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_SPgiLzW63Hnv@ep-wild-mode-ahtvkpwm-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require';
 
-let sql;
+let sql = null;
+let initError = null;
+
 try {
-    sql = neon(DATABASE_URL);
+    if (DATABASE_URL) {
+        sql = neon(DATABASE_URL);
+    }
 } catch (e) {
     console.error('Failed to initialize Neon client:', e);
+    initError = e.message;
 }
 
 // Initialize table if it doesn't exist
@@ -45,16 +50,21 @@ exports.handler = async (event, context) => {
         return { statusCode: 200, headers, body: '' };
     }
 
-    // Ensure table exists
-    await initTable();
-
+    // Check if database is configured
     if (!sql) {
         return {
             statusCode: 500,
             headers,
-            body: JSON.stringify({ error: 'Database connection failed' })
+            body: JSON.stringify({ 
+                error: 'Database not configured',
+                hint: 'Set DATABASE_URL environment variable in Netlify',
+                initError: initError
+            })
         };
     }
+
+    // Ensure table exists
+    const tableReady = await initTable();
 
     try {
         const body = event.httpMethod === 'POST' ? JSON.parse(event.body || '{}') : {};

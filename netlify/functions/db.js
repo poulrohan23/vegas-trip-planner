@@ -4,7 +4,7 @@
 const { neon } = require('@neondatabase/serverless');
 
 // Database connection (uses environment variable on Netlify)
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_SPgiLzW63Hnv@ep-wild-mode-ahtvkpwm-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require';
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_SPgiLzW63Hnv@ep-nameless-surf-ahqroo2t-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require';
 
 let sql = null;
 let initError = null;

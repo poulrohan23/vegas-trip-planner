@@ -1,0 +1,22 @@
+# Netlify Configuration for Vegas Trip Planner
+
+[build]
+  # No build command needed - we're serving static HTML
+  publish = "."
+  functions = "netlify/functions"
+
+[functions]
+  # Use Node.js 18 for serverless functions
+  node_bundler = "esbuild"
+
+# Redirect API calls to the serverless function
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/db"
+  status = 200
+
+# Handle SPA routing (serve index.html for all routes)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

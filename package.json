@@ -1,0 +1,15 @@
+{
+  "name": "vegas-trip-planner",
+  "version": "1.0.0",
+  "description": "Vegas/LA/SD Trip Planner with real-time sync across all devices",
+  "scripts": {
+    "start": "npx serve .",
+    "dev": "npx netlify dev"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^0.9.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

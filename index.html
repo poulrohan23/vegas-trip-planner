@@ -1,0 +1,1268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Vegas/LA/SD Trip 2025</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body {
+            background-color: #f9fafb;
+            color: #1f2937;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        ::-webkit-scrollbar { width: 0px; background: transparent; }
+        
+        .glass-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .glass-card:hover {
+            box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.08);
+            transform: translateY(-2px);
+        }
+        
+        .btn-press {
+            transition: transform 0.1s, opacity 0.1s;
+        }
+        .btn-press:active { 
+            transform: scale(0.97); 
+            opacity: 0.85; 
+        }
+        
+        .slide-up { 
+            animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; 
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        input, select, textarea {
+            background-color: #f3f4f6;
+            color: #1f2937;
+            border: 1px solid #d1d5db;
+            transition: all 0.2s;
+        }
+        input:focus, select:focus, textarea:focus {
+            border-color: #6366f1;
+            outline: none;
+            background-color: white;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+        }
+        
+        .checkbox-custom {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #d1d5db;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .checkbox-custom:checked {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            border-color: transparent;
+        }
+        .checkbox-custom:checked::after {
+            content: '✓';
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .notes-banner {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border-left: 4px solid #f59e0b;
+        }
+        
+        .login-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, createContext, useContext, useCallback } = React;
+        
+        // App Password
+        const APP_PASSWORD = "VegasTrip202$!";
+        
+        // API Base URL - uses relative path for Netlify Functions
+        const API_URL = '/.netlify/functions/db';
+        
+        // Database helper functions using Netlify Functions API
+        const db = {
+            async init() {
+                try {
+                    const response = await fetch(`${API_URL}?action=ping`);
+                    const data = await response.json();
+                    console.log('Database API:', data.success ? 'Connected!' : 'Failed');
+                    return data.success;
+                } catch (e) {
+                    console.error('DB init failed:', e);
+                    return false;
+                }
+            },
+            
+            async get(key) {
+                try {
+                    const response = await fetch(`${API_URL}?action=get&key=${encodeURIComponent(key)}`);
+                    const data = await response.json();
+                    return data.value || null;
+                } catch (e) {
+                    console.error(`DB GET ${key}:`, e);
+                    return null;
+                }
+            },
+            
+            async set(key, value) {
+                try {
+                    const response = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'set', key, value })
+                    });
+                    const data = await response.json();
+                    return data.success;
+                } catch (e) {
+                    console.error(`DB SET ${key}:`, e);
+                    return false;
+                }
+            },
+            
+            async getAll() {
+                try {
+                    const response = await fetch(`${API_URL}?action=getAll`);
+                    const data = await response.json();
+                    return data.data || {};
+                } catch (e) {
+                    console.error('DB GET ALL:', e);
+                    return {};
+                }
+            }
+        };
+        
+        // Sync status indicator
+        const SyncIndicator = ({ syncing, lastSync, connected }) => (
+            <div className="flex items-center gap-1 text-xs">
+                {syncing ? (
+                    <><i className="fas fa-sync fa-spin text-amber-500"></i><span className="text-amber-600">Syncing...</span></>
+                ) : connected && lastSync ? (
+                    <><i className="fas fa-cloud text-green-500"></i><span className="text-green-600">Synced</span></>
+                ) : (
+                    <><i className="fas fa-exclamation-circle text-red-400"></i><span className="text-red-500">Offline</span></>
+                )}
+            </div>
+        );
+        
+        // Auth Context
+        const AuthContext = createContext(null);
+
+        // Login Screen Component
+        const LoginScreen = ({ onLogin }) => {
+            const [password, setPassword] = useState("");
+            const [name, setName] = useState("");
+            const [error, setError] = useState("");
+            const [step, setStep] = useState(1); // 1 = password, 2 = name
+
+            const handlePasswordSubmit = (e) => {
+                e.preventDefault();
+                if (password === APP_PASSWORD) {
+                    setStep(2);
+                    setError("");
+                } else {
+                    setError("Wrong password. Try again!");
+                }
+            };
+
+            const handleNameSubmit = (e) => {
+                e.preventDefault();
+                if (name.trim()) {
+                    onLogin(name.trim());
+                }
+            };
+
+            return (
+                <div className="min-h-screen login-bg flex items-center justify-center p-6">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 slide-up">
+                        <div className="text-center mb-8">
+                            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                                <i className="fas fa-plane text-white text-3xl"></i>
+                            </div>
+                            <h1 className="text-2xl font-black text-gray-900">TRIPMASTER</h1>
+                            <p className="text-gray-500 text-sm mt-1">Vegas • LA • San Diego 2025</p>
+                        </div>
+
+                        {step === 1 ? (
+                            <form onSubmit={handlePasswordSubmit} className="space-y-4">
+                                <div>
+                                    <label className="text-xs uppercase text-gray-500 font-bold ml-1">Trip Password</label>
+                                    <input
+                                        type="password"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        placeholder="Enter crew password..."
+                                        className="w-full p-4 rounded-xl text-center text-lg tracking-wider"
+                                        autoFocus
+                                    />
+                                </div>
+                                {error && <p className="text-red-500 text-sm text-center font-medium">{error}</p>}
+                                <button type="submit" className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:opacity-90 text-white font-bold py-4 rounded-xl btn-press">
+                                    <i className="fas fa-lock-open mr-2"></i> Unlock Trip
+                                </button>
+                            </form>
+                        ) : (
+                            <form onSubmit={handleNameSubmit} className="space-y-4 fade-in">
+                                <div>
+                                    <label className="text-xs uppercase text-gray-500 font-bold ml-1">Your Name</label>
+                                    <input
+                                        type="text"
+                                        value={name}
+                                        onChange={(e) => setName(e.target.value)}
+                                        placeholder="Who's joining the trip?"
+                                        className="w-full p-4 rounded-xl text-center text-lg"
+                                        autoFocus
+                                    />
+                                </div>
+                                <button type="submit" className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:opacity-90 text-white font-bold py-4 rounded-xl btn-press">
+                                    <i className="fas fa-rocket mr-2"></i> Let's Go!
+                                </button>
+                            </form>
+                        )}
+
+                        <p className="text-center text-gray-400 text-xs mt-6">
+                            <i className="fas fa-shield-alt mr-1"></i> Password protected for crew only
+                        </p>
+                    </div>
+                </div>
+            );
+        };
+
+        // Format date helper
+        const formatDate = (timestamp) => {
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diff = now - date;
+            if (diff < 60000) return 'just now';
+            if (diff < 3600000) return `${Math.floor(diff/60000)}m ago`;
+            if (diff < 86400000) return `${Math.floor(diff/3600000)}h ago`;
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        };
+
+        // Important Notes Banner Component (Top of screen)
+        const ImportantNotesBanner = ({ notes, setNotes, currentUser }) => {
+            const [isExpanded, setIsExpanded] = useState(true);
+            const [newNote, setNewNote] = useState("");
+            const [showAddForm, setShowAddForm] = useState(false);
+
+            const addNote = (e) => {
+                e.preventDefault();
+                if (!newNote.trim()) return;
+                const note = {
+                    id: Date.now(),
+                    text: newNote.trim(),
+                    author: currentUser,
+                    timestamp: Date.now(),
+                    priority: 'normal'
+                };
+                setNotes([note, ...notes]);
+                setNewNote("");
+                setShowAddForm(false);
+            };
+
+            const deleteNote = (id) => {
+                setNotes(notes.filter(n => n.id !== id));
+            };
+
+            if (notes.length === 0 && !showAddForm) {
+                return (
+                    <div className="mx-4 mb-4">
+                        <button 
+                            onClick={() => setShowAddForm(true)}
+                            className="w-full py-3 border-2 border-dashed border-amber-300 rounded-xl text-amber-600 hover:border-amber-400 hover:bg-amber-50 font-medium text-sm btn-press flex items-center justify-center gap-2"
+                        >
+                            <i className="fas fa-bullhorn"></i> Add Important Note for Crew
+                        </button>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="mx-4 mb-4 slide-up">
+                    <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl overflow-hidden shadow-sm">
+                        {/* Header */}
+                        <div 
+                            className="flex items-center justify-between p-4 cursor-pointer hover:bg-amber-100/50 transition-colors"
+                            onClick={() => setIsExpanded(!isExpanded)}
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
+                                    <i className="fas fa-bullhorn text-white text-sm"></i>
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-gray-900">Important Notes</h3>
+                                    <p className="text-xs text-gray-500">{notes.length} note{notes.length !== 1 ? 's' : ''} from crew</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); setShowAddForm(!showAddForm); }}
+                                    className="w-8 h-8 rounded-full bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center btn-press"
+                                >
+                                    <i className="fas fa-plus text-xs"></i>
+                                </button>
+                                <div className={`transition-transform duration-300 text-amber-600 ${isExpanded ? 'rotate-180' : ''}`}>
+                                    <i className="fas fa-chevron-down"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Add Note Form */}
+                        {showAddForm && (
+                            <div className="px-4 pb-4 border-t border-amber-200 bg-white/50">
+                                <form onSubmit={addNote} className="flex gap-2 mt-4">
+                                    <input
+                                        type="text"
+                                        value={newNote}
+                                        onChange={(e) => setNewNote(e.target.value)}
+                                        placeholder="Add important note for the crew..."
+                                        className="flex-1 p-3 rounded-xl border-amber-200 focus:border-amber-400"
+                                        autoFocus
+                                    />
+                                    <button type="submit" className="bg-amber-500 hover:bg-amber-600 text-white px-4 rounded-xl font-bold btn-press">
+                                        <i className="fas fa-paper-plane"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        )}
+
+                        {/* Notes List */}
+                        {isExpanded && notes.length > 0 && (
+                            <div className="px-4 pb-4 space-y-2 max-h-64 overflow-y-auto">
+                                {notes.map(note => (
+                                    <div key={note.id} className="bg-white rounded-xl p-3 border border-amber-100 shadow-sm">
+                                        <div className="flex justify-between items-start gap-2">
+                                            <p className="text-sm text-gray-800 flex-1">{note.text}</p>
+                                            <button 
+                                                onClick={() => deleteNote(note.id)}
+                                                className="text-gray-400 hover:text-red-500 btn-press shrink-0"
+                                            >
+                                                <i className="fas fa-times text-xs"></i>
+                                            </button>
+                                        </div>
+                                        <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                                            <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
+                                                <i className="fas fa-user"></i> {note.author}
+                                            </span>
+                                            <span>{formatDate(note.timestamp)}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        // Checklist View Component
+        const ChecklistView = ({ personalChecklist, setPersonalChecklist, crewChecklist, setCrewChecklist, currentUser }) => {
+            const [newPersonalItem, setNewPersonalItem] = useState("");
+            const [newCrewItem, setNewCrewItem] = useState("");
+            const [activeTab, setActiveTab] = useState('personal');
+
+            const addPersonalItem = (e) => {
+                e.preventDefault();
+                if (!newPersonalItem.trim()) return;
+                const item = {
+                    id: Date.now(),
+                    text: newPersonalItem.trim(),
+                    checked: false,
+                    createdAt: Date.now()
+                };
+                setPersonalChecklist([...personalChecklist, item]);
+                setNewPersonalItem("");
+            };
+
+            const addCrewItem = (e) => {
+                e.preventDefault();
+                if (!newCrewItem.trim()) return;
+                const item = {
+                    id: Date.now(),
+                    text: newCrewItem.trim(),
+                    checked: false,
+                    addedBy: currentUser,
+                    checkedBy: null,
+                    createdAt: Date.now()
+                };
+                setCrewChecklist([...crewChecklist, item]);
+                setNewCrewItem("");
+            };
+
+            const togglePersonalItem = (id) => {
+                setPersonalChecklist(personalChecklist.map(item => 
+                    item.id === id ? { ...item, checked: !item.checked } : item
+                ));
+            };
+
+            const toggleCrewItem = (id) => {
+                setCrewChecklist(crewChecklist.map(item => 
+                    item.id === id ? { 
+                        ...item, 
+                        checked: !item.checked,
+                        checkedBy: !item.checked ? currentUser : null
+                    } : item
+                ));
+            };
+
+            const deletePersonalItem = (id) => {
+                setPersonalChecklist(personalChecklist.filter(item => item.id !== id));
+            };
+
+            const deleteCrewItem = (id) => {
+                setCrewChecklist(crewChecklist.filter(item => item.id !== id));
+            };
+
+            const personalChecked = personalChecklist.filter(i => i.checked).length;
+            const crewChecked = crewChecklist.filter(i => i.checked).length;
+
+            return (
+                <div className="pb-24 space-y-4 slide-up">
+                    {/* Tab Switcher */}
+                    <div className="flex gap-2 p-1 bg-gray-100 rounded-2xl">
+                        <button
+                            onClick={() => setActiveTab('personal')}
+                            className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all btn-press ${
+                                activeTab === 'personal' 
+                                    ? 'bg-white text-indigo-600 shadow-md' 
+                                    : 'text-gray-500 hover:text-gray-700'
+                            }`}
+                        >
+                            <i className="fas fa-user mr-2"></i> My List ({personalChecked}/{personalChecklist.length})
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('crew')}
+                            className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all btn-press ${
+                                activeTab === 'crew' 
+                                    ? 'bg-white text-purple-600 shadow-md' 
+                                    : 'text-gray-500 hover:text-gray-700'
+                            }`}
+                        >
+                            <i className="fas fa-users mr-2"></i> Crew List ({crewChecked}/{crewChecklist.length})
+                        </button>
+                    </div>
+
+                    {/* Personal Checklist */}
+                    {activeTab === 'personal' && (
+                        <div className="glass-card rounded-2xl p-5">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center">
+                                    <i className="fas fa-lock text-white text-sm"></i>
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-gray-900">My Personal Checklist</h3>
+                                    <p className="text-xs text-gray-500">Only you can see this</p>
+                                </div>
+                            </div>
+
+                            <form onSubmit={addPersonalItem} className="flex gap-2 mb-4">
+                                <input
+                                    type="text"
+                                    value={newPersonalItem}
+                                    onChange={(e) => setNewPersonalItem(e.target.value)}
+                                    placeholder="Add item to pack..."
+                                    className="flex-1 p-3 rounded-xl"
+                                />
+                                <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 rounded-xl font-bold btn-press">
+                                    <i className="fas fa-plus"></i>
+                                </button>
+                            </form>
+
+                            <div className="space-y-2">
+                                {personalChecklist.length === 0 && (
+                                    <p className="text-gray-400 text-center italic text-sm py-4">No items yet. Start adding!</p>
+                                )}
+                                {personalChecklist.map(item => (
+                                    <div key={item.id} className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${item.checked ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
+                                        <input
+                                            type="checkbox"
+                                            checked={item.checked}
+                                            onChange={() => togglePersonalItem(item.id)}
+                                            className="checkbox-custom"
+                                        />
+                                        <span className={`flex-1 text-sm ${item.checked ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+                                            {item.text}
+                                        </span>
+                                        <button onClick={() => deletePersonalItem(item.id)} className="text-gray-400 hover:text-red-500 btn-press">
+                                            <i className="fas fa-times text-xs"></i>
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Crew Checklist */}
+                    {activeTab === 'crew' && (
+                        <div className="glass-card rounded-2xl p-5">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
+                                    <i className="fas fa-users text-white text-sm"></i>
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-gray-900">Crew Shared Checklist</h3>
+                                    <p className="text-xs text-gray-500">Everyone can see & check off</p>
+                                </div>
+                            </div>
+
+                            <form onSubmit={addCrewItem} className="flex gap-2 mb-4">
+                                <input
+                                    type="text"
+                                    value={newCrewItem}
+                                    onChange={(e) => setNewCrewItem(e.target.value)}
+                                    placeholder="Add shared item..."
+                                    className="flex-1 p-3 rounded-xl"
+                                />
+                                <button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white px-4 rounded-xl font-bold btn-press">
+                                    <i className="fas fa-plus"></i>
+                                </button>
+                            </form>
+
+                            <div className="space-y-2">
+                                {crewChecklist.length === 0 && (
+                                    <p className="text-gray-400 text-center italic text-sm py-4">No shared items yet.</p>
+                                )}
+                                {crewChecklist.map(item => (
+                                    <div key={item.id} className={`p-3 rounded-xl border transition-all ${item.checked ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
+                                        <div className="flex items-center gap-3">
+                                            <input
+                                                type="checkbox"
+                                                checked={item.checked}
+                                                onChange={() => toggleCrewItem(item.id)}
+                                                className="checkbox-custom"
+                                            />
+                                            <span className={`flex-1 text-sm ${item.checked ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+                                                {item.text}
+                                            </span>
+                                            <button onClick={() => deleteCrewItem(item.id)} className="text-gray-400 hover:text-red-500 btn-press">
+                                                <i className="fas fa-times text-xs"></i>
+                                            </button>
+                                        </div>
+                                        <div className="flex items-center gap-2 mt-2 ml-8 text-xs text-gray-500">
+                                            <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
+                                                Added by {item.addedBy}
+                                            </span>
+                                            {item.checked && item.checkedBy && (
+                                                <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                                                    <i className="fas fa-check mr-1"></i> {item.checkedBy}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const SUGGESTIONS = {
+            "Las Vegas": [
+                { title: "In-N-Out Burger", location: "In-N-Out Las Vegas", desc: "Classic cheap California burgers.", type: "food" },
+                { title: "The High Roller", location: "The High Roller Observation Wheel", desc: "Affordable day views of the Strip.", type: "sight" },
+            ],
+            "Los Angeles": [
+                { title: "Pink's Hot Dogs", location: "Pink's Hot Dogs", desc: "Famous LA hot dog spot.", type: "food" },
+                { title: "Santa Monica Pier", location: "Santa Monica Pier", desc: "Free to walk, great views.", type: "sight" },
+            ],
+            "San Diego": [
+                { title: "Hodad's Downtown", location: "Hodad's Downtown", desc: "Giant, cheap burgers.", type: "food" },
+                { title: "Old Town State Park", location: "Old Town San Diego State Historic Park", desc: "Free historic site.", type: "sight" },
+            ]
+        };
+
+        const INITIAL_ITINERARY = [
+            {
+                date: "Dec 19",
+                city: "Las Vegas",
+                title: "Touchdown & Tacos",
+                events: [
+                    { id: 1, time: "9:00 PM", title: "Arrival & Car Pickup", location: "Harry Reid Airport Rental Center", desc: "Check car for scratches!", type: "logistics" },
+                    { id: 2, time: "10:00 PM", title: "Tacos El Gordo", location: "Tacos El Gordo Las Vegas", desc: "Best Adobada tacos. Cheap & incredible.", type: "food" },
+                    { id: 3, time: "12:00 AM", title: "Hotel Check-in", location: "Las Vegas Lodging", desc: "Rest up.", type: "logistics" }
+                ]
+            },
+            {
+                date: "Dec 20",
+                city: "Las Vegas",
+                title: "Arts & Old Vegas",
+                events: [
+                    { id: 4, time: "11:00 AM", title: "Hash House A Go Go", location: "Hash House A Go Go", desc: "Sage fried chicken. Huge portions.", type: "food" },
+                    { id: 5, time: "1:30 PM", title: "AREA15 & Omega Mart", location: "AREA15", desc: "Interactive art. Very trippy.", type: "sight" },
+                    { id: 6, time: "7:30 PM", title: "Secret Pizza", location: "Secret Pizza Cosmopolitan", desc: "Hidden spot. Cheap slices.", type: "food" },
+                    { id: 7, time: "9:30 PM", title: "Fremont Street", location: "Fremont Street Experience", desc: "Light shows. Cheaper gambling.", type: "sight" }
+                ]
+            },
+            {
+                date: "Dec 21",
+                city: "Drive",
+                title: "Desert Run (295 mi)",
+                events: [
+                    { id: 8, time: "9:00 AM", title: "Gas Up", location: "Costco Gas Las Vegas", desc: "Fill before I-15 South.", type: "gas" },
+                    { id: 9, time: "11:30 AM", title: "Alien Fresh Jerky", location: "Alien Fresh Jerky Baker CA", desc: "Snacks & giant thermometer.", type: "gas" },
+                    { id: 10, time: "1:30 PM", title: "Grand Central Market", location: "Grand Central Market LA", desc: "Tacos, Thai, Burgers.", type: "food" },
+                    { id: 11, time: "4:00 PM", title: "LA Check-in", location: "Los Angeles Lodging", desc: "Buffer: 25 miles local.", type: "logistics" },
+                    { id: 12, time: "7:30 PM", title: "Haidilao Hot Pot", location: "Haidilao Century City", desc: "Noodle dancing & fun.", type: "food" }
+                ]
+            },
+            {
+                date: "Dec 22",
+                city: "Los Angeles",
+                title: "Views & Vibes",
+                events: [
+                    { id: 13, time: "9:00 AM", title: "Griffith Observatory", location: "Griffith Observatory", desc: "Hollywood Sign views.", type: "sight" },
+                    { id: 14, time: "12:00 PM", title: "In-N-Out", location: "In-N-Out Sunset Blvd", desc: "The CA staple.", type: "food" },
+                    { id: 15, time: "3:30 PM", title: "The Getty Center", location: "The Getty Center", desc: "Free museum. Amazing architecture.", type: "sight" },
+                    { id: 16, time: "8:00 PM", title: "Daikokuya Ramen", location: "Daikokuya Sawtelle", desc: "Little Osaka. Amazing ramen.", type: "food" }
+                ]
+            },
+            {
+                date: "Dec 23",
+                city: "Drive",
+                title: "Coastal Highway (140 mi)",
+                events: [
+                    { id: 17, time: "10:00 AM", title: "Depart LA", location: "Los Angeles Lodging", desc: "Buffer: 15 miles local.", type: "logistics" },
+                    { id: 18, time: "12:30 PM", title: "La Jolla Cove", location: "La Jolla Cove", desc: "Walk the coast. See seals.", type: "sight" },
+                    { id: 19, time: "2:30 PM", title: "The Taco Stand", location: "The Taco Stand La Jolla", desc: "Famous Al Pastor.", type: "food" },
+                    { id: 20, time: "5:30 PM", title: "Sunset Cliffs", location: "Sunset Cliffs Natural Park", desc: "Best SoCal sunset.", type: "sight" },
+                    { id: 21, time: "7:30 PM", title: "Shabu-Works", location: "Shabu-Works Mira Mesa", desc: "All-you-can-eat. Great value.", type: "food" }
+                ]
+            },
+            {
+                date: "Dec 24",
+                city: "San Diego",
+                title: "Zoo & Gaslamp",
+                events: [
+                    { id: 22, time: "9:00 AM", title: "San Diego Zoo", location: "San Diego Zoo", desc: "Huge. Wear sneakers.", type: "sight" },
+                    { id: 23, time: "2:00 PM", title: "Balboa Park", location: "Balboa Park", desc: "Relax in gardens.", type: "sight" },
+                    { id: 24, time: "6:00 PM", title: "Mint Indian", location: "Mint Indian Cuisine", desc: "Flavorful. Good for groups.", type: "food" },
+                    { id: 25, time: "8:00 PM", title: "Gaslamp Quarter", location: "Gaslamp Quarter", desc: "Historic district. Lots of bars.", type: "sight" }
+                ]
+            },
+            {
+                date: "Dec 25",
+                city: "Drive",
+                title: "Xmas Road Trip (350 mi)",
+                events: [
+                    { id: 26, time: "9:30 AM", title: "Gas & Go", location: "San Diego Gas Station", desc: "Buffer: 20 miles local.", type: "gas" },
+                    { id: 27, time: "12:00 PM", title: "Eddie World", location: "Eddie World Yermo CA", desc: "Bathroom, ice cream, snacks.", type: "gas" },
+                    { id: 28, time: "5:00 PM", title: "Arrive Vegas", location: "Las Vegas Lodging", desc: "Final hotel check-in.", type: "logistics" },
+                    { id: 29, time: "7:00 PM", title: "Pho Kim Long", location: "Pho Kim Long", desc: "Chinatown. 24/7.", type: "food" },
+                    { id: 30, time: "9:00 PM", title: "Bellagio Fountains", location: "Bellagio Hotel", desc: "Christmas show.", type: "sight" }
+                ]
+            },
+            {
+                date: "Dec 26",
+                city: "Las Vegas",
+                title: "Departure",
+                events: [
+                    { id: 31, time: "10:00 AM", title: "Rental Return", location: "Harry Reid Airport Rental Center", desc: "30 min shuttle buffer.", type: "logistics" }
+                ]
+            }
+        ];
+
+        const Icon = ({ name, className = "" }) => {
+            const icons = {
+                map: "fa-location-arrow", food: "fa-utensils", sight: "fa-camera",
+                drive: "fa-car", gas: "fa-gas-pump", logistics: "fa-suitcase",
+                casino: "fa-dice", edit: "fa-pen", plus: "fa-plus",
+                trash: "fa-times-circle", x: "fa-times", users: "fa-users",
+                list: "fa-list", note: "fa-sticky-note", hotel: "fa-bed",
+                navigate: "fa-route"
+            };
+            return <i className={`fas ${icons[name] || 'fa-circle'} ${className}`}></i>;
+        };
+
+        const generateMultiStopMapUrl = (events) => {
+            if (events.length === 0) return '#';
+            const nav = events.filter(e => e.type !== 'logistics');
+            if (nav.length < 2) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(nav[0]?.location || events[0].location)}`;
+            const origin = encodeURIComponent(nav[0].location);
+            const dest = encodeURIComponent(nav[nav.length - 1].location);
+            let waypoints = nav.length > 2 ? nav.slice(1, -1).map(e => encodeURIComponent(e.location)).join('|') : '';
+            let url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}`;
+            if (waypoints) url += `&waypoints=${waypoints}`;
+            return url;
+        };
+
+        const AddEventModal = ({ isOpen, onClose, onAdd }) => {
+            const [form, setForm] = useState({ title: "", time: "", location: "", desc: "", type: "sight" });
+            if (!isOpen) return null;
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                onAdd(form);
+                setForm({ title: "", time: "", location: "", desc: "", type: "sight" });
+                onClose();
+            };
+
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl slide-up">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-bold">Add Plan</h3>
+                            <button onClick={onClose} className="text-gray-400 hover:text-gray-800 btn-press"><Icon name="x"/></button>
+                        </div>
+                        <form onSubmit={handleSubmit} className="space-y-3">
+                            <input required placeholder="Title" className="w-full p-3 rounded-xl" value={form.title} onChange={e => setForm({...form, title: e.target.value})} />
+                            <input required placeholder="Time" className="w-full p-3 rounded-xl" value={form.time} onChange={e => setForm({...form, time: e.target.value})} />
+                            <input required placeholder="Location" className="w-full p-3 rounded-xl" value={form.location} onChange={e => setForm({...form, location: e.target.value})} />
+                            <input placeholder="Description" className="w-full p-3 rounded-xl" value={form.desc} onChange={e => setForm({...form, desc: e.target.value})} />
+                            <select className="w-full p-3 rounded-xl" value={form.type} onChange={e => setForm({...form, type: e.target.value})}>
+                                <option value="sight">Sightseeing</option>
+                                <option value="food">Food</option>
+                                <option value="gas">Gas Stop</option>
+                                <option value="casino">Casino</option>
+                                <option value="logistics">Logistics</option>
+                            </select>
+                            <button type="submit" className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:opacity-90 text-white font-bold py-3 rounded-xl btn-press">Add</button>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        const CitySuggestions = ({ city, dayIndex, setItinerary }) => {
+            const sugg = SUGGESTIONS[city] || [];
+            const addSugg = (s) => {
+                setItinerary(prev => {
+                    const newI = [...prev];
+                    newI[dayIndex].events.push({ ...s, id: Date.now(), time: "TBD" });
+                    newI[dayIndex].events.sort((a, b) => (a.time === "TBD" ? 1 : b.time === "TBD" ? -1 : a.time.localeCompare(b.time)));
+                    return newI;
+                });
+            };
+            if (sugg.length === 0) return null;
+            return (
+                <div className="mt-4 p-4 border border-indigo-100 bg-indigo-50 rounded-xl">
+                    <h5 className="font-bold text-indigo-700 text-sm mb-3"><Icon name="plus" className="text-xs mr-1"/> Local Suggestions</h5>
+                    <div className="space-y-2">
+                        {sugg.map((s, i) => (
+                            <div key={i} className="flex justify-between items-center bg-white p-3 rounded-lg">
+                                <div>
+                                    <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${s.type === 'food' ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}`}>{s.type}</span>
+                                    <p className="font-semibold text-sm mt-0.5">{s.title}</p>
+                                    <p className="text-gray-500 text-xs">{s.desc}</p>
+                                </div>
+                                <button onClick={() => addSugg(s)} className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg btn-press">
+                                    <Icon name="plus" className="mr-1"/> Add
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const ItineraryView = ({ itinerary, setItinerary, editMode }) => {
+            const [openDay, setOpenDay] = useState(0);
+            const [showModal, setShowModal] = useState(false);
+            const [targetDay, setTargetDay] = useState(null);
+
+            const delEvent = (dayIdx, eventId) => {
+                const newI = [...itinerary];
+                newI[dayIdx].events = newI[dayIdx].events.filter(e => e.id !== eventId);
+                setItinerary(newI);
+            };
+
+            const addEvent = (data) => {
+                const newI = [...itinerary];
+                newI[targetDay].events.push({ ...data, id: Date.now() });
+                newI[targetDay].events.sort((a, b) => (a.time === "TBD" ? 1 : b.time === "TBD" ? -1 : a.time.localeCompare(b.time)));
+                setItinerary(newI);
+            };
+
+            return (
+                <div className="space-y-4 pb-24">
+                    <AddEventModal isOpen={showModal} onClose={() => setShowModal(false)} onAdd={addEvent} />
+                    {itinerary.map((day, idx) => (
+                        <div key={idx} className="glass-card rounded-2xl overflow-hidden">
+                            <div className="p-6 bg-gradient-to-br from-indigo-50 to-purple-50 border-b border-indigo-100">
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wide">{day.date}</span>
+                                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${day.city === 'Drive' ? 'bg-gray-200 text-gray-700' : 'bg-indigo-100 text-indigo-700'}`}>
+                                        {day.events.length} stops
+                                    </span>
+                                </div>
+                                <h3 className="text-2xl font-bold text-gray-900 mb-1">{day.city}</h3>
+                                <p className="text-sm text-gray-600 font-medium">{day.title}</p>
+                            </div>
+                            <div 
+                                className={`p-4 flex justify-between items-center cursor-pointer transition-all ${openDay === idx ? 'bg-indigo-50/50' : 'hover:bg-gray-50'}`}
+                                onClick={() => setOpenDay(openDay === idx ? null : idx)}
+                            >
+                                <span className="font-semibold text-sm text-gray-700">{openDay === idx ? 'Hide' : 'View'} Daily Plan</span>
+                                <div className={`transition-transform duration-300 text-indigo-500 ${openDay === idx ? 'rotate-180' : ''}`}>
+                                    <i className="fas fa-chevron-down"></i>
+                                </div>
+                            </div>
+                            {openDay === idx && (
+                                <div className="p-5 border-t space-y-6 slide-up bg-gradient-to-b from-white to-gray-50">
+                                    <a href={generateMultiStopMapUrl(day.events)} target="_blank"
+                                        className="w-full inline-flex items-center justify-center gap-2 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 px-5 py-3.5 rounded-xl shadow-md hover:shadow-lg btn-press">
+                                        <Icon name="navigate" /> Navigate Full Day Route
+                                    </a>
+                                    {day.events.map(e => (
+                                        <div key={e.id} className="relative pl-6 border-l-2 border-gray-200 hover:border-indigo-400 transition-all group">
+                                            {editMode && (
+                                                <button onClick={() => delEvent(idx, e.id)}
+                                                    className="absolute -right-1 top-0 text-red-400 hover:text-red-600 p-2 btn-press">
+                                                    <Icon name="trash" className="text-sm" />
+                                                </button>
+                                            )}
+                                            <div className={`absolute -left-[10px] top-0 w-5 h-5 rounded-full border-[3px] border-white shadow-lg group-hover:scale-110 transition-transform ${
+                                                e.type === 'food' ? 'bg-gradient-to-br from-orange-400 to-orange-600' : 
+                                                e.type === 'gas' ? 'bg-gradient-to-br from-red-400 to-red-600' :
+                                                e.type === 'logistics' ? 'bg-gradient-to-br from-blue-400 to-blue-600' :
+                                                e.type === 'casino' ? 'bg-gradient-to-br from-purple-400 to-purple-600' :
+                                                'bg-gradient-to-br from-indigo-400 to-indigo-600'
+                                            }`}></div>
+                                            <div className="w-full">
+                                                <span className={`text-xs font-semibold px-2.5 py-1 rounded-full inline-block ${e.time === 'TBD' ? 'bg-red-100 text-red-700' : 'bg-indigo-100 text-indigo-700'}`}>{e.time}</span>
+                                                <h4 className="font-bold text-base text-gray-900 mt-2">{e.title}</h4>
+                                                <p className="text-gray-600 text-sm mt-1 leading-relaxed">{e.desc}</p>
+                                                <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.location)}`} target="_blank"
+                                                    className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-2 rounded-lg btn-press">
+                                                    <Icon name="map" /> Navigate to Stop
+                                                </a>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    <CitySuggestions city={day.city === 'Drive' ? (idx === 2 ? 'Los Angeles' : idx === 4 ? 'San Diego' : 'Las Vegas') : day.city} dayIndex={idx} setItinerary={setItinerary} />
+                                    {editMode && (
+                                        <button onClick={() => { setTargetDay(idx); setShowModal(true); }}
+                                            className="w-full py-3.5 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50/50 font-semibold btn-press">
+                                            <Icon name="plus" className="mr-2"/> Add Custom Stop
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            );
+        };
+
+        const InfoView = ({ rental, setRental, accommodations, setAccommodations }) => {
+            return (
+                <div className="pb-24 space-y-6 slide-up">
+                    <h3 className="text-lg font-bold text-gray-700">Accommodation</h3>
+                    {['las', 'los', 'san'].map(k => (
+                        <div key={k} className="glass-card p-5 rounded-2xl">
+                            <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-pink-600">
+                                <Icon name="hotel"/> {k === 'las' ? 'Las Vegas' : k === 'los' ? 'Los Angeles' : 'San Diego'} Stay
+                            </h2>
+                            <div className="space-y-3">
+                                <div>
+                                    <label className="text-xs uppercase text-gray-500 font-bold ml-1">Name</label>
+                                    <input className="w-full p-3 rounded-xl" placeholder="Hotel/Airbnb name"
+                                        value={accommodations[k]?.name || ''} onChange={e => setAccommodations({...accommodations, [k]: {...accommodations[k], name: e.target.value}})} />
+                                </div>
+                                <div>
+                                    <label className="text-xs uppercase text-gray-500 font-bold ml-1">Address</label>
+                                    <input className="w-full p-3 rounded-xl" placeholder="Full address"
+                                        value={accommodations[k]?.address || ''} onChange={e => setAccommodations({...accommodations, [k]: {...accommodations[k], address: e.target.value}})} />
+                                </div>
+                                <div>
+                                    <label className="text-xs uppercase text-gray-500 font-bold ml-1">Notes</label>
+                                    <textarea className="w-full p-3 rounded-xl h-16" placeholder="Check-in code..."
+                                        value={accommodations[k]?.notes || ''} onChange={e => setAccommodations({...accommodations, [k]: {...accommodations[k], notes: e.target.value}})} />
+                                </div>
+                                {accommodations[k]?.address && (
+                                    <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(accommodations[k].address)}`} target="_blank"
+                                        className="inline-flex items-center gap-2 text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-2 rounded-lg btn-press">
+                                        <Icon name="map" /> Navigate
+                                    </a>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+
+                    <div className="glass-card p-5 rounded-2xl">
+                        <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-indigo-600"><Icon name="drive"/> Car Rental</h2>
+                        <div className="space-y-3">
+                            <div>
+                                <label className="text-xs uppercase text-gray-500 font-bold ml-1">Company</label>
+                                <input className="w-full p-3 rounded-xl" placeholder="Company" value={rental.company} onChange={e => setRental({...rental, company: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="text-xs uppercase text-gray-500 font-bold ml-1">Confirmation #</label>
+                                <input className="w-full p-3 rounded-xl font-mono" placeholder="Confirmation #" value={rental.conf} onChange={e => setRental({...rental, conf: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="text-xs uppercase text-gray-500 font-bold ml-1">Pickup Details</label>
+                                <textarea className="w-full p-3 rounded-xl h-20" placeholder="Pickup details" value={rental.pickup} onChange={e => setRental({...rental, pickup: e.target.value})} />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const TravelersView = ({ travelers, setTravelers, currentUser }) => {
+            const [newName, setNewName] = useState("");
+            const add = (e) => {
+                e.preventDefault();
+                if (!newName.trim()) return;
+                if (travelers.includes(newName.trim())) return;
+                setTravelers([...travelers, newName.trim()]);
+                setNewName("");
+            };
+
+            return (
+                <div className="pb-24 space-y-6 slide-up">
+                    <div className="glass-card p-6 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 text-white">
+                        <h2 className="text-2xl font-bold mb-1">The Crew</h2>
+                        <p className="text-indigo-100 text-sm mb-4">Who's riding shotgun?</p>
+                        <form onSubmit={add} className="flex gap-2">
+                            <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Name..." 
+                                className="flex-1 rounded-xl px-4 py-2 bg-white/20 border-transparent text-white placeholder-indigo-100 focus:bg-white focus:text-gray-800 focus:placeholder-gray-400" />
+                            <button className="bg-white text-indigo-600 px-5 py-2 rounded-xl font-bold shadow-md btn-press">Add</button>
+                        </form>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                        {travelers.map((name, i) => (
+                            <div key={i} className={`glass-card p-4 rounded-xl flex justify-between items-center ${name === currentUser ? 'ring-2 ring-indigo-500 bg-indigo-50' : ''}`}>
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${name === currentUser ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white' : 'bg-indigo-100 border border-indigo-200 text-indigo-600'}`}>
+                                        {name.charAt(0).toUpperCase()}
+                                    </div>
+                                    <div>
+                                        <span className="font-bold text-gray-800">{name}</span>
+                                        {name === currentUser && <span className="block text-xs text-indigo-600 font-medium">You</span>}
+                                    </div>
+                                </div>
+                                {name !== currentUser && (
+                                    <button onClick={() => setTravelers(travelers.filter((_, idx) => idx !== i))} 
+                                        className="text-gray-400 hover:text-red-500 btn-press"><Icon name="x" className="text-xs"/></button>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            // Auth state
+            const [isAuthenticated, setIsAuthenticated] = useState(() => {
+                return localStorage.getItem('tripAuth') === 'true';
+            });
+            const [currentUser, setCurrentUser] = useState(() => {
+                return localStorage.getItem('tripCurrentUser') || '';
+            });
+            
+            // Sync state
+            const [syncing, setSyncing] = useState(false);
+            const [lastSync, setLastSync] = useState(null);
+            const [isLoading, setIsLoading] = useState(true);
+            const [dbConnected, setDbConnected] = useState(false);
+
+            const handleLogin = async (name) => {
+                // Normalize name: trim whitespace and capitalize first letter
+                const normalizedName = name.trim().toLowerCase().replace(/^\w/, c => c.toUpperCase());
+                
+                setCurrentUser(normalizedName);
+                setIsAuthenticated(true);
+                localStorage.setItem('tripAuth', 'true');
+                localStorage.setItem('tripCurrentUser', normalizedName);
+                
+                // Add user to travelers in DB (case-insensitive check)
+                setSyncing(true);
+                const currentTravelers = await db.get('travelers') || [];
+                const existingUser = currentTravelers.find(t => t.toLowerCase() === normalizedName.toLowerCase());
+                if (!existingUser) {
+                    await db.set('travelers', [...currentTravelers, normalizedName]);
+                } else {
+                    // Use the existing name format for consistency
+                    setCurrentUser(existingUser);
+                    localStorage.setItem('tripCurrentUser', existingUser);
+                }
+                setSyncing(false);
+            };
+
+            const handleLogout = () => {
+                setIsAuthenticated(false);
+                setCurrentUser('');
+                localStorage.removeItem('tripAuth');
+                localStorage.removeItem('tripCurrentUser');
+            };
+
+            const [activeTab, setActiveTab] = useState('itinerary');
+            const [editMode, setEditMode] = useState(false);
+            
+            // All shared state
+            const [itinerary, setItinerary] = useState(INITIAL_ITINERARY);
+            const [travelers, setTravelers] = useState([]);
+            const [rental, setRental] = useState({ company: '', conf: '', pickup: '' });
+            const [importantNotes, setImportantNotes] = useState([]);
+            const [accommodations, setAccommodations] = useState({ 
+                las: { name: '', address: '', notes: '' },
+                los: { name: '', address: '', notes: '' },
+                san: { name: '', address: '', notes: '' }
+            });
+            const [crewChecklist, setCrewChecklist] = useState([]);
+            
+            // Personal checklist (per user - stays local)
+            const [personalChecklist, setPersonalChecklist] = useState(() => {
+                const saved = localStorage.getItem(`tripPersonalChecklist_${currentUser}`);
+                return saved ? JSON.parse(saved) : [];
+            });
+
+            // Load all data from database
+            const loadFromDB = useCallback(async () => {
+                if (!neonClient) {
+                    setIsLoading(false);
+                    return;
+                }
+                
+                setSyncing(true);
+                try {
+                    await db.init();
+                    const allData = await db.getAll();
+                    
+                    if (Object.keys(allData).length > 0) {
+                        setDbConnected(true);
+                        if (allData.itinerary) setItinerary(allData.itinerary);
+                        if (allData.travelers) setTravelers(allData.travelers);
+                        if (allData.rental) setRental(allData.rental);
+                        if (allData.notes) setImportantNotes(allData.notes);
+                        if (allData.accommodations) setAccommodations(allData.accommodations);
+                        if (allData.crewChecklist) setCrewChecklist(allData.crewChecklist);
+                        setLastSync(new Date());
+                    } else {
+                        // First time - save initial data
+                        setDbConnected(true);
+                        await db.set('itinerary', INITIAL_ITINERARY);
+                        setLastSync(new Date());
+                    }
+                } catch (e) {
+                    console.error('Load from DB failed:', e);
+                    setDbConnected(false);
+                }
+                setSyncing(false);
+                setIsLoading(false);
+            }, []);
+
+            // Initial load and polling
+            useEffect(() => {
+                if (isAuthenticated) {
+                    loadFromDB();
+                    // Poll for updates every 5 seconds
+                    const interval = setInterval(loadFromDB, 5000);
+                    return () => clearInterval(interval);
+                } else {
+                    setIsLoading(false);
+                }
+            }, [isAuthenticated, loadFromDB]);
+
+            // Save functions that sync to database
+            const saveItinerary = useCallback(async (data) => {
+                setItinerary(data);
+                setSyncing(true);
+                await db.set('itinerary', data);
+                setLastSync(new Date());
+                setSyncing(false);
+            }, []);
+
+            const saveTravelers = useCallback(async (data) => {
+                setTravelers(data);
+                setSyncing(true);
+                await db.set('travelers', data);
+                setLastSync(new Date());
+                setSyncing(false);
+            }, []);
+
+            const saveRental = useCallback(async (data) => {
+                setRental(data);
+                setSyncing(true);
+                await db.set('rental', data);
+                setLastSync(new Date());
+                setSyncing(false);
+            }, []);
+
+            const saveNotes = useCallback(async (data) => {
+                setImportantNotes(data);
+                setSyncing(true);
+                await db.set('notes', data);
+                setLastSync(new Date());
+                setSyncing(false);
+            }, []);
+
+            const saveAccommodations = useCallback(async (data) => {
+                setAccommodations(data);
+                setSyncing(true);
+                await db.set('accommodations', data);
+                setLastSync(new Date());
+                setSyncing(false);
+            }, []);
+
+            const saveCrewChecklist = useCallback(async (data) => {
+                setCrewChecklist(data);
+                setSyncing(true);
+                await db.set('crewChecklist', data);
+                setLastSync(new Date());
+                setSyncing(false);
+            }, []);
+
+            // Personal checklist stays local
+            useEffect(() => {
+                if (currentUser) {
+                    const saved = localStorage.getItem(`tripPersonalChecklist_${currentUser}`);
+                    setPersonalChecklist(saved ? JSON.parse(saved) : []);
+                }
+            }, [currentUser]);
+
+            useEffect(() => {
+                if (currentUser) {
+                    localStorage.setItem(`tripPersonalChecklist_${currentUser}`, JSON.stringify(personalChecklist));
+                }
+            }, [personalChecklist, currentUser]);
+
+            // Show login screen if not authenticated
+            if (!isAuthenticated) {
+                return <LoginScreen onLogin={handleLogin} />;
+            }
+            
+            // Show loading screen while fetching from DB
+            if (isLoading) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                        <div className="text-center">
+                            <i className="fas fa-sync fa-spin text-4xl text-indigo-600 mb-4"></i>
+                            <p className="text-gray-600 font-medium">Loading trip data...</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen max-w-md mx-auto bg-gray-50">
+                    <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b px-6 py-4 shadow-sm">
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <h1 className="text-2xl font-black italic text-gray-900 tracking-tighter">
+                                    TRIPMASTER <span className="text-indigo-600 text-xs not-italic font-bold border border-indigo-300 px-1.5 py-0.5 rounded ml-1">V7</span>
+                                </h1>
+                                <div className="flex items-center gap-2 mt-1">
+                                    <p className="text-xs text-gray-500 font-medium">Dec 19-26 • {travelers.length} Crew</p>
+                                    <SyncIndicator syncing={syncing} lastSync={lastSync} connected={dbConnected} />
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button onClick={loadFromDB} className="text-xs text-gray-500 hover:text-indigo-600 btn-press p-1.5" title="Refresh">
+                                    <i className={`fas fa-sync ${syncing ? 'fa-spin' : ''}`}></i>
+                                </button>
+                                {activeTab === 'itinerary' && (
+                                    <button onClick={() => setEditMode(!editMode)}
+                                        className={`text-xs font-bold px-3 py-1.5 rounded-full btn-press ${editMode ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                                        {editMode ? 'EXIT' : 'EDIT'}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                        <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+                            <div className="flex items-center gap-2">
+                                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
+                                    {currentUser.charAt(0).toUpperCase()}
+                                </div>
+                                <span className="text-sm font-medium text-gray-700">{currentUser}</span>
+                            </div>
+                            <button 
+                                onClick={handleLogout}
+                                className="text-xs text-gray-500 hover:text-red-500 font-medium btn-press"
+                            >
+                                <i className="fas fa-sign-out-alt mr-1"></i> Logout
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="pt-4">
+                        {/* Important Notes Banner - Always at top */}
+                        <ImportantNotesBanner 
+                            notes={importantNotes} 
+                            setNotes={saveNotes} 
+                            currentUser={currentUser}
+                        />
+                    </div>
+
+                    <div className="px-4">
+                        {activeTab === 'itinerary' && <ItineraryView itinerary={itinerary} setItinerary={saveItinerary} editMode={editMode} />}
+                        {activeTab === 'checklist' && (
+                            <ChecklistView 
+                                personalChecklist={personalChecklist}
+                                setPersonalChecklist={setPersonalChecklist}
+                                crewChecklist={crewChecklist}
+                                setCrewChecklist={saveCrewChecklist}
+                                currentUser={currentUser}
+                            />
+                        )}
+                        {activeTab === 'logistics' && <InfoView rental={rental} setRental={saveRental} accommodations={accommodations} setAccommodations={saveAccommodations} />}
+                        {activeTab === 'crew' && <TravelersView travelers={travelers} setTravelers={saveTravelers} currentUser={currentUser} />}
+                    </div>
+
+                    <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/95 backdrop-blur border-t flex justify-around p-2 pb-5 z-50 shadow-2xl">
+                        <button onClick={() => setActiveTab('itinerary')} 
+                            className={`flex flex-col items-center p-2 rounded-xl w-16 btn-press ${activeTab === 'itinerary' ? 'text-indigo-600' : 'text-gray-400'}`}>
+                            <Icon name="list" className="text-xl mb-1"/>
+                            <span className="text-[10px] font-bold">Plan</span>
+                        </button>
+                        <button onClick={() => setActiveTab('checklist')} 
+                            className={`flex flex-col items-center p-2 rounded-xl w-16 btn-press ${activeTab === 'checklist' ? 'text-indigo-600' : 'text-gray-400'}`}>
+                            <i className="fas fa-check-square text-xl mb-1"></i>
+                            <span className="text-[10px] font-bold">Lists</span>
+                        </button>
+                        <button onClick={() => setActiveTab('logistics')} 
+                            className={`flex flex-col items-center p-2 rounded-xl w-16 btn-press ${activeTab === 'logistics' ? 'text-indigo-600' : 'text-gray-400'}`}>
+                            <Icon name="logistics" className="text-xl mb-1"/>
+                            <span className="text-[10px] font-bold">Info</span>
+                        </button>
+                        <button onClick={() => setActiveTab('crew')} 
+                            className={`flex flex-col items-center p-2 rounded-xl w-16 btn-press ${activeTab === 'crew' ? 'text-indigo-600' : 'text-gray-400'}`}>
+                            <Icon name="users" className="text-xl mb-1"/>
+                            <span className="text-[10px] font-bold">Crew</span>
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

@@ -1045,30 +1045,31 @@
 
             // Load all data from database
             const loadFromDB = useCallback(async () => {
-                if (!neonClient) {
-                    setIsLoading(false);
-                    return;
-                }
-                
                 setSyncing(true);
                 try {
-                    await db.init();
+                    const connected = await db.init();
+                    if (!connected) {
+                        console.error('Database not connected');
+                        setDbConnected(false);
+                        setIsLoading(false);
+                        setSyncing(false);
+                        return;
+                    }
+                    
                     const allData = await db.getAll();
                     
-                    if (Object.keys(allData).length > 0) {
-                        setDbConnected(true);
-                        if (allData.itinerary) setItinerary(allData.itinerary);
-                        if (allData.travelers) setTravelers(allData.travelers);
-                        if (allData.rental) setRental(allData.rental);
-                        if (allData.notes) setImportantNotes(allData.notes);
-                        if (allData.accommodations) setAccommodations(allData.accommodations);
-                        if (allData.crewChecklist) setCrewChecklist(allData.crewChecklist);
-                        setLastSync(new Date());
-                    } else {
-                        // First time - save initial data
-                        setDbConnected(true);
+                    setDbConnected(true);
+                    if (allData.itinerary) setItinerary(allData.itinerary);
+                    if (allData.travelers) setTravelers(allData.travelers);
+                    if (allData.rental) setRental(allData.rental);
+                    if (allData.notes) setImportantNotes(allData.notes);
+                    if (allData.accommodations) setAccommodations(allData.accommodations);
+                    if (allData.crewChecklist) setCrewChecklist(allData.crewChecklist);
+                    setLastSync(new Date());
+                    
+                    // First time - save initial data if empty
+                    if (Object.keys(allData).length === 0) {
                         await db.set('itinerary', INITIAL_ITINERARY);
-                        setLastSync(new Date());
                     }
                 } catch (e) {
                     console.error('Load from DB failed:', e);

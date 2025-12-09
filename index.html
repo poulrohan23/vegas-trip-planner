@@ -108,7 +108,7 @@
         const { useState, useEffect, createContext, useContext, useCallback } = React;
         
         // App Password
-        const APP_PASSWORD = "VegasTrip202$!";
+        const APP_PASSWORD = "Trip20Vegas2$!";
         
         // API Base URL - uses relative path for Netlify Functions
         const API_URL = '/.netlify/functions/db';
@@ -190,6 +190,9 @@
 
             const handlePasswordSubmit = (e) => {
                 e.preventDefault();
+                console.log("Typed password:", password);
+                console.log("Expected password:", APP_PASSWORD);
+                console.log("Match:", password === APP_PASSWORD);
                 if (password === APP_PASSWORD) {
                     setStep(2);
                     setError("");
